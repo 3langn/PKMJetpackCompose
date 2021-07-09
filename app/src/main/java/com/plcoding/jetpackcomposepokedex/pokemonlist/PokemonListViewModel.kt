@@ -14,6 +14,7 @@ import com.plcoding.jetpackcomposepokedex.repository.PokemonRepository
 import com.plcoding.jetpackcomposepokedex.util.Constants.PAGE_SIZE
 import com.plcoding.jetpackcomposepokedex.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
 import javax.inject.Inject
@@ -29,8 +30,37 @@ class PokemonListViewModel @Inject constructor(
     var isLoading = mutableStateOf(false)
     var endReached = mutableStateOf(false)
 
+    private var cachedPokemonList =  listOf<PokedexListEntry>()
+    private var isSearchStarting = true
+    var isSearching = mutableStateOf(false)
     init {
         loadPokemonPaginated()
+    }
+
+    fun searchPokemonList(query:String){
+        val listToSearch = if(isSearchStarting){
+            pokemonList.value
+        }else{
+            cachedPokemonList
+        }
+        viewModelScope.launch(Dispatchers.Default){
+            if(query.isEmpty()){
+                pokemonList.value = cachedPokemonList
+                isSearching.value = false
+                isSearchStarting = true
+                return@launch
+            }
+            val result = listToSearch.filter {
+                it.pokemonName.contains(query.trim(),ignoreCase = true) ||
+                        it.number.toString() == query.trim()
+            }
+            if (isSearchStarting){
+                cachedPokemonList = pokemonList.value
+                isSearchStarting = false
+            }
+            pokemonList.value = result
+            isSearching.value = true
+        }
     }
 
     fun loadPokemonPaginated(){
@@ -40,7 +70,7 @@ class PokemonListViewModel @Inject constructor(
             when(result){
                 is Resource.Success -> {
                     endReached.value = curPage * PAGE_SIZE >= result.data!!.count
-                    val pokedexEntries = result.data.results.mapIndexed { index, entry ->
+                    val pokedexEntries = result.data.results.mapIndexed { _, entry ->
                         val number = if(entry.url.endsWith("/")){
                             entry.url.dropLast(1).takeLastWhile { it.isDigit() }
                         } else{
@@ -48,7 +78,9 @@ class PokemonListViewModel @Inject constructor(
                         }
                         val url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${number}.png"
                         PokedexListEntry(
-                            pokemonName = entry.name.capitalize(Locale.ROOT),
+                            pokemonName = entry.name.replaceFirstChar {
+                               it.uppercase()
+                            },
                             imageUrl = url,
                             number = number.toInt()
                         )

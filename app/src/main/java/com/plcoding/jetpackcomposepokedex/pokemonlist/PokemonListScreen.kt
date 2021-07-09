@@ -30,19 +30,19 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltNavGraphViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.navigate
 import coil.request.ImageRequest
-import com.google.accompanist.coil.CoilImage
+import com.google.accompanist.coil.rememberCoilPainter
+import com.google.accompanist.imageloading.ImageLoadState
 import com.plcoding.jetpackcomposepokedex.R
-import com.plcoding.jetpackcomposepokedex.data.remote.responses.PokemonList
 import com.plcoding.jetpackcomposepokedex.models.PokedexListEntry
 import com.plcoding.jetpackcomposepokedex.ui.theme.RobotoCondensed
 
 @Composable
 fun PokemonListScreen(
-    navController: NavController
+    navController: NavController,
+    viewModel: PokemonListViewModel = hiltViewModel()
 ){
     Surface(
         color = MaterialTheme.colors.background,
@@ -62,7 +62,7 @@ fun PokemonListScreen(
                 .padding(16.dp),
                 hint = "Search ..."
             ) {
-
+                viewModel.searchPokemonList(it)
             }
             Spacer(modifier = Modifier.height(16.dp))
             PokemonList(navController = navController)
@@ -98,9 +98,9 @@ fun SearchBar(
                 .shadow(5.dp, CircleShape)
                 .background(Color.White, CircleShape)
                 .padding(horizontal = 20.dp, vertical = 12.dp)
-                .onFocusChanged {
-                    isHintDisplayed = it != FocusState.Active
-                }
+//                .onFocusChanged {
+//                    isHintDisplayed = it != FocusState. && text.isNotEmpty()
+//                }
         )
         if(isHintDisplayed){
             Text(
@@ -115,13 +115,13 @@ fun SearchBar(
 @Composable
 fun PokemonList(
     navController: NavController,
-    viewModel: PokemonListViewModel = hiltNavGraphViewModel(),
+    viewModel: PokemonListViewModel = hiltViewModel(),
 ){
     val pokemonList by remember { viewModel.pokemonList }
     val endReached by remember { viewModel.endReached }
     val isLoading by remember { viewModel.isLoading }
     val loadError by remember { viewModel.loadError }
-
+    val isSearching by remember { viewModel.isSearching }
     LazyColumn {
         val itemCount = if(pokemonList.size % 2 == 0){
             pokemonList.size/ 2
@@ -129,7 +129,7 @@ fun PokemonList(
             pokemonList.size/ 2 + 1
         }
         items(itemCount) {
-            if(it >= itemCount - 1 && !endReached) {
+            if(it >= itemCount - 1 && !endReached && !isSearching) {
               viewModel.loadPokemonPaginated()
             }
             PokedexRow(
@@ -159,7 +159,7 @@ fun PokedexEntry(
     entry: PokedexListEntry,
     navController: NavController,
     modifier: Modifier = Modifier,
-    viewModel: PokemonListViewModel = hiltNavGraphViewModel(),
+    viewModel: PokemonListViewModel = hiltViewModel(),
 ){
     val defaultDominantColor = MaterialTheme.colors.surface
     var dominantColor by remember {
@@ -187,25 +187,32 @@ fun PokedexEntry(
                 )
             }
     ){
-        Column {
-            CoilImage(request = ImageRequest.Builder(LocalContext.current)
+        val painter = rememberCoilPainter(
+            fadeIn = true,
+            request = ImageRequest.Builder(LocalContext.current)
                 .data(entry.imageUrl)
-                .target{
-                    viewModel.calcDominantColor(it){ color->
+                .target {
+                    viewModel.calcDominantColor(it) { color ->
                         dominantColor = color
                     }
                 }
                 .build(),
+        )
+        Column {
+            Image(
+                painter = painter,
                 contentDescription = entry.pokemonName,
-                fadeIn = true,
                 modifier = Modifier
                     .size(120.dp)
                     .align(CenterHorizontally)
-            ) {
-                CircularProgressIndicator(
-                    color = MaterialTheme.colors.primary,
-                    modifier = Modifier.scale(0.5f)
-                )
+            )
+            when (painter.loadState) {
+                is ImageLoadState.Loading -> {
+                    CircularProgressIndicator()
+                }
+                is ImageLoadState.Error -> {
+                    // If you wish to display some content if the request fails
+                }
             }
             Text(
                 text = entry.pokemonName,
