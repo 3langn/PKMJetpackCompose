@@ -1,6 +1,7 @@
 package com.plcoding.jetpackcomposepokedex.pokemondetail
 
 import android.graphics.Color.red
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,9 +35,10 @@ fun PokemonDetailScreen(
     pokemonImageSize: Dp = 200.dp,
     viewModel: PokemonDetailViewModel = hiltViewModel()
     ) {
-    val pokemonInfo = produceState<Resource<Pokemon>>(initialValue = Resource.Loading<Pokemon>()){ value = viewModel.getPokemonInfo(pokemonName)
+    val pokemonInfo = produceState<Resource<Pokemon>>(initialValue = Resource.Loading()){ value = viewModel.getPokemonInfo(pokemonName)
     }.value
-    Box(modifier = androidx.compose.ui.Modifier
+    Log.d("CheckPkm", "PokemonDetailScreen: $pokemonInfo")
+    Box(modifier = Modifier
         .fillMaxSize()
         .background(dominantColor)
         .padding(bottom = 16.dp)
@@ -81,7 +83,11 @@ fun PokemonDetailScreen(
             if(pokemonInfo is Resource.Success){
                 pokemonInfo.data?.sprites?.let {
                     //Todo
-                    //Image(painter = rememberCoilPainter(request = pokemonInfo.data.u), contentDescription = )
+                    Image(painter = rememberCoilPainter(
+                        request = it.front_default),
+                        contentDescription = pokemonName,
+                        modifier = Modifier.size(50.dp)
+                    )
                 }
             }
         }
